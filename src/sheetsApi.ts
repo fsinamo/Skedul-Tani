@@ -148,21 +148,50 @@ export async function fetchFromGoogleSheets(url: string): Promise<SyncResponse> 
     throw new Error("URL Google Apps Script belum dikonfigurasi.");
   }
 
+  let useProxyFailed = false;
   try {
     const response = await fetch(`/api/sync?url=${encodeURIComponent(cleanUrl)}`, {
       method: "GET"
     });
 
-    if (!response.ok) {
+    if (response.status === 404) {
+      useProxyFailed = true;
+    } else if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
+    } else {
+      const data = await response.json();
+      return data as SyncResponse;
     }
-
-    const data = await response.json();
-    return data as SyncResponse;
   } catch (error) {
-    console.error("Gagal mengambil data dari Google Sheets:", error);
-    throw new Error(error instanceof Error ? error.message : "Terjadi kesalahan koneksi.");
+    console.warn("Proxy fetch failed, attempting direct client-side fetch:", error);
+    useProxyFailed = true;
   }
+
+  if (useProxyFailed) {
+    try {
+      // Direct client-side fetch to avoid 404 error on Vercel static deployments
+      // We do not specify custom headers like "Accept" or "Content-Type" to avoid OPTIONS preflight request
+      const response = await fetch(cleanUrl, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data as SyncResponse;
+    } catch (directError) {
+      console.error("Gagal mengambil data langsung dari Google Sheets:", directError);
+      throw new Error(
+        directError instanceof Error
+          ? directError.message
+          : "Gagal mengambil data langsung dari Google Sheets. Pastikan URL Apps Script benar dan Anda telah memberikan izin akses (Anyone)."
+      );
+    }
+  }
+
+  throw new Error("Terjadi kesalahan koneksi.");
 }
 
 export async function syncToGoogleSheets(
@@ -174,12 +203,13 @@ export async function syncToGoogleSheets(
     throw new Error("URL Google Apps Script belum dikonfigurasi.");
   }
 
-  try {
-    const postPayload = {
-      action: "syncAll",
-      ...payload,
-    };
+  const postPayload = {
+    action: "syncAll",
+    ...payload,
+  };
 
+  let useProxyFailed = false;
+  try {
     const response = await fetch(`/api/sync`, {
       method: "POST",
       headers: {
@@ -191,14 +221,46 @@ export async function syncToGoogleSheets(
       }),
     });
 
-    if (!response.ok) {
+    if (response.status === 404) {
+      useProxyFailed = true;
+    } else if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
+    } else {
+      const data = await response.json();
+      return data as SyncResponse;
     }
-
-    const data = await response.json();
-    return data as SyncResponse;
   } catch (error) {
-    console.error("Gagal menyinkronkan data ke Google Sheets:", error);
-    throw new Error(error instanceof Error ? error.message : "Terjadi kesalahan koneksi.");
+    console.warn("Proxy sync failed, attempting direct client-side sync:", error);
+    useProxyFailed = true;
   }
+
+  if (useProxyFailed) {
+    try {
+      // Direct client-side POST to avoid 404 error on Vercel static deployments
+      // We set Content-Type to text/plain to bypass OPTIONS preflight CORS restrictions
+      const response = await fetch(cleanUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify(postPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data as SyncResponse;
+    } catch (directError) {
+      console.error("Gagal menyinkronkan data langsung ke Google Sheets:", directError);
+      throw new Error(
+        directError instanceof Error
+          ? directError.message
+          : "Gagal menyinkronkan data langsung ke Google Sheets. Pastikan URL Apps Script benar dan Anda telah memberikan izin akses (Anyone)."
+      );
+    }
+  }
+
+  throw new Error("Terjadi kesalahan koneksi.");
 }
