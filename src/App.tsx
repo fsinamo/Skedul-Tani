@@ -25,7 +25,10 @@ import {
   X,
   Database,
   Table,
-  List
+  List,
+  Lock,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 import { Crop, Activity, Category, UserSession, SyncConfig } from "./types";
@@ -36,6 +39,8 @@ export default function App() {
   // --- STATE ---
   const [session, setSession] = useState<UserSession | null>(null);
   const [emailInput, setEmailInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
 
   const [crops, setCrops] = useState<Crop[]>([]);
@@ -142,15 +147,21 @@ export default function App() {
   // --- LOGIN HANDLER ---
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (emailInput.trim().toLowerCase() !== "appdb74@gmail.com") {
+    const emailLower = emailInput.trim().toLowerCase();
+    if (emailLower !== "appdb74@gmail.com") {
       setLoginError("Akses ditolak! Anda harus login menggunakan akun email: appdb74@gmail.com");
+      return;
+    }
+
+    if (passwordInput !== "tani74" && passwordInput !== "appdb74") {
+      setLoginError("Kata sandi salah! Silakan coba lagi. (Petunjuk: gunakan kata sandi 'tani74')");
       return;
     }
 
     const now = Date.now();
     const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
     const sessionData: UserSession = {
-      email: emailInput.trim().toLowerCase(),
+      email: emailLower,
       loginTime: now,
       expiryTime: now + oneWeekMs
     };
@@ -158,12 +169,14 @@ export default function App() {
     localStorage.setItem("skedultani_session", JSON.stringify(sessionData));
     setSession(sessionData);
     setLoginError("");
+    setPasswordInput("");
   };
 
   const handleLogout = () => {
     localStorage.removeItem("skedultani_session");
     setSession(null);
     setEmailInput("");
+    setPasswordInput("");
   };
 
   // --- GOOGLE SHEETS SYNC ---
@@ -550,6 +563,36 @@ export default function App() {
                     onChange={(e) => setEmailInput(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm font-medium text-slate-800"
                   />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="password" className="block text-xs font-medium text-slate-600 uppercase tracking-wider">
+                    Kata Sandi
+                  </label>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
+                    Gunakan sandi: tani74
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="Masukkan kata sandi..."
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="w-full pl-4 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm font-medium text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    title={showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
